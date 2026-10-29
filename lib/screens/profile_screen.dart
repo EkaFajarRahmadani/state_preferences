@@ -45,7 +45,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final email = _emailController.text.trim();
     final prefs = await SharedPreferences.getInstance();
     final savedEmail = prefs.getString('user_email')?.trim();
-    final isCurrentUserEmail = provider.user.isLoggedIn &&
+    final isCurrentUserEmail =
+        provider.user.isLoggedIn &&
         savedEmail?.toLowerCase() == provider.user.email.toLowerCase();
     if (savedEmail != null &&
         savedEmail.isNotEmpty &&
@@ -145,6 +146,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 24),
                       TextFormField(
                         controller: _nameController,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
                         decoration: const InputDecoration(
                           labelText: 'Nama',
                           prefixIcon: Icon(Icons.person),
@@ -154,8 +156,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           if (value == null || value.trim().isEmpty) {
                             return 'Nama tidak boleh kosong';
                           }
-                          if (RegExp(r'[<>]').hasMatch(value)) {
-                            return 'Nama tidak boleh mengandung karakter < atau >';
+                          if (!RegExp(
+                            r'^[\p{L}\p{M} ]+$',
+                            unicode: true,
+                          ).hasMatch(value.trim())) {
+                            return 'Nama hanya boleh berisi huruf dan spasi';
                           }
                           return null;
                         },
