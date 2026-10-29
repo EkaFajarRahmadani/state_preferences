@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'providers/user_provider.dart';
 import 'screens/home_screen.dart';
@@ -11,15 +12,26 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
-    return UserProviderWrapper(
-      child: MaterialApp(
-        title: 'State & Preferences',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          useMaterial3: true,
+    return ChangeNotifierProvider(
+      create: (_) => UserProvider()..load(),
+      child: Consumer<UserProvider>(
+        builder: (context, provider, _) => MaterialApp(
+          title: 'State & Preferences',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+            useMaterial3: true,
+          ),
+          darkTheme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.deepPurple,
+              brightness: Brightness.dark,
+            ),
+            useMaterial3: true,
+          ),
+          themeMode: provider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          home: const HomeScreen(),
         ),
-        home: const HomeScreen(),
       ),
     );
   }

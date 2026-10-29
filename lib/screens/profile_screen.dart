@@ -1,51 +1,91 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/user_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _nameController;
-  late TextEditingController _emailController;
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _favoriteController = TextEditingController();
   bool _controllersInitialized = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_controllersInitialized) return;
-    final provider = UserProvider.of(context);
-    _nameController = TextEditingController(text: provider.user.name);
-    _emailController = TextEditingController(text: provider.user.email);
-    _controllersInitialized = true;
+    final provider = context.read<UserProvider>();
+    if (!_controllersInitialized && !provider.isLoading) {
+      _nameController.text = provider.user.name;
+      _emailController.text = provider.user.email;
+      _controllersInitialized = true;
+    }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _favoriteController.dispose();
     super.dispose();
   }
 
-  void _saveProfile() {
-    if (_formKey.currentState!.validate()) {
-      final provider = UserProvider.of(context);
-      final updatedUser = provider.user.copyWith(
-        name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
-        isLoggedIn: true,
-      );
-      provider.updateUser(updatedUser);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profil berhasil disimpan'),
-          backgroundColor: Colors.green,
-        ),
-      );
+  Future<void> _saveProfile() async {
+    if (_formKey.currentState?.validate() != true) return;
+
+    final provider = context.read<UserProvider>();
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final prefs = await SharedPreferences.getInstance();
+    final savedEmail = prefs.getString('user_email')?.trim();
+    final isCurrentUserEmail = provider.user.isLoggedIn &&
+        savedEmail?.toLowerCase() == provider.user.email.toLowerCase();
+    if (savedEmail != null &&
+        savedEmail.isNotEmpty &&
+        savedEmail.toLowerCase() == email.toLowerCase() &&
+        !isCurrentUserEmail) {
+      _showMessage('Email sudah digunakan', isError: true);
+      return;
     }
+
+    await provider.updateUser(
+      provider.user.copyWith(name: name, email: email, isLoggedIn: true),
+    );
+    if (mounted) _showMessage('Profil berhasil disimpan');
+  }
+
+  Future<void> _addFavorite() async {
+    final favorite = _favoriteController.text.trim();
+    if (favorite.isEmpty) {
+      _showMessage('Favorit tidak boleh kosong', isError: true);
+      return;
+    }
+    final provider = context.read<UserProvider>();
+    if (provider.favorites.any(
+      (item) => item.toLowerCase() == favorite.toLowerCase(),
+    )) {
+      _showMessage('Favorit sudah ada', isError: true);
+      return;
+    }
+
+    await provider.addFavorite(favorite);
+    if (mounted) _favoriteController.clear();
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Theme.of(context).colorScheme.error : null,
+      ),
+    );
   }
 
   void _logout() {
@@ -62,10 +102,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              UserProvider.of(context).logout();
+              context.read<UserProvider>().logout();
               Navigator.pop(context);
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+            child: const Text('Logout'),
           ),
         ],
       ),
@@ -74,12 +114,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = UserProvider.of(context);
+    final provider = context.watch<UserProvider>();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profil'),
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
         actions: [
           if (provider.user.isLoggedIn)
             IconButton(
@@ -102,12 +140,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 16),
                       const CircleAvatar(
                         radius: 50,
-                        backgroundColor: Colors.deepPurple,
-                        child: Icon(
-                          Icons.person,
-                          size: 60,
-                          color: Colors.white,
-                        ),
+                        child: Icon(Icons.person, size: 60),
                       ),
                       const SizedBox(height: 24),
                       TextFormField(
@@ -120,6 +153,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Nama tidak boleh kosong';
+                          }
+                          if (RegExp(r'[<>]').hasMatch(value)) {
+                            return 'Nama tidak boleh mengandung karakter < atau >';
                           }
                           return null;
                         },
@@ -137,7 +173,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           if (value == null || value.trim().isEmpty) {
                             return 'Email tidak boleh kosong';
                           }
-                          final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
+                          final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
                           if (!emailRegex.hasMatch(value.trim())) {
                             return 'Format email tidak valid';
                           }
@@ -150,14 +186,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         icon: const Icon(Icons.save),
                         label: const Text('Simpan Profil'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepPurple,
-                          foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
                       ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Daftar Favorit',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        key: const ValueKey('favorite-input'),
+                        controller: _favoriteController,
+                        decoration: InputDecoration(
+                          labelText: 'Hobi atau item favorit',
+                          border: const OutlineInputBorder(),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.add),
+                            tooltip: 'Tambah favorit',
+                            onPressed: _addFavorite,
+                          ),
+                        ),
+                        onSubmitted: (_) => _addFavorite(),
+                      ),
+                      if (provider.favorites.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Text('Belum ada favorit.'),
+                        )
+                      else
+                        ...provider.favorites.map(
+                          (favorite) => ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(favorite),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              tooltip: 'Hapus $favorite',
+                              onPressed: () =>
+                                  provider.removeFavorite(favorite),
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 16),
                       Card(
-                        color: Colors.amber[50],
+                        color: Theme.of(context).colorScheme.secondaryContainer,
                         child: Padding(
                           padding: const EdgeInsets.all(16.0),
                           child: Column(
@@ -165,13 +237,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             children: [
                               Row(
                                 children: [
-                                  Icon(Icons.info, color: Colors.amber[800]),
+                                  const Icon(Icons.info),
                                   const SizedBox(width: 8),
-                                  const Text(
+                                  Text(
                                     'Catatan Keamanan',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall,
                                   ),
                                 ],
                               ),

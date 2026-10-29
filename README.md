@@ -1,17 +1,23 @@
-# state_preferences
+# State & Preferences
 
-A new Flutter project.
+Aplikasi Flutter sederhana untuk mengelola profil dan preferensi lokal.
 
-## Getting Started
+## Fitur
 
-This project is a starting point for a Flutter application.
+- Tema terang/gelap yang tersimpan dengan key `is_dark_mode`.
+- Penghitung kunjungan aplikasi dengan key `visit_count`.
+- Daftar favorit yang dapat ditambah dan dihapus dengan key `favorites`.
+- Profil pengguna dikelola menggunakan `provider` dan `ChangeNotifier`.
+- Validasi email yang sudah tersimpan serta penolakan karakter `<` dan `>` pada nama.
 
-A few resources to get you started if this is your first Flutter project:
+Data disimpan secara lokal menggunakan `SharedPreferences`, yang tidak terenkripsi.
+Jangan gunakan untuk menyimpan kata sandi atau informasi sensitif.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Menjalankan dan menguji
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter pub get
+flutter run
+flutter test
+flutter analyze
+```
